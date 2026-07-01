@@ -47,4 +47,6 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4")
 }
