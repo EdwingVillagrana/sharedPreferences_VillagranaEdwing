@@ -8,121 +8,123 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import villagrana.edwing.login.ui.theme.LoginTheme
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        val prefs = PreferenceManager(this)
-
         enableEdgeToEdge()
+
+        val preferenceManager = PreferenceManager(this)
+
         setContent {
-
-            var screenState by remember { mutableStateOf(if (prefs.isLoggedIn()) "HOME" else "LOGIN") }
-
-            if (screenState == "LOGIN") {
-                LoginScreen(onLoginClick = {
-                    prefs.saveLoginStatus(true)
-                    screenState = "HOME"
-                })
-            } else {
-                HomeScreen(onLogoutClick = {
-                    prefs.logout()
-                    screenState = "LOGIN"
-                })
-            }
+            AppTienda(
+                preferenceManager = preferenceManager
+            )
         }
     }
+}
 
-    @Composable
-    fun LoginScreen (onLoginClick: () -> Unit){
+@Composable
+fun HomeScreen(onLogoutClick: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(text = "Bienvenido al Home!", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = { onLogoutClick() }) {
+            Text("Iniciar sesión")
+        }
+    }
+}
 
-        var email by remember { mutableStateOf("")}
-        var password by remember { mutableStateOf("") }
-        var errorMessage by remember { mutableStateOf("") }
+@Composable
+fun AppTienda(
+    preferenceManager: PreferenceManager
+) {
+    // Pantalla que se está mostrando actualmente
+    var pantallaActual by remember {
+        mutableStateOf(PantallaActual.TIENDA)
+    }
 
-        Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(text = "Iniciar sesión", style = MaterialTheme.typography.headlineLarge)
-            Spacer(modifier = Modifier.height(20.dp))
-            OutlinedTextField(
-                value = email,
-                onValueChange = {email = it; errorMessage = ""},
-                label = {Text("Correo electrónico")},
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
+    // Id del producto seleccionado para ver su detalle
+    var idProductoSeleccionado by remember {
+        mutableStateOf<Int?>(null)
+    }
 
-            Spacer(modifier = Modifier.height(12.dp))
+    // Lista del carrito en memoria
+    val productosCarrito = remember {
+        mutableStateListOf<Producto>()
+    }
 
-            OutlinedTextField(
-                value = password,
-                onValueChange = {password = it; errorMessage = ""},
-                label = {Text("Contraseña")},
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true
-            )
+    // Cuando la app abre, cargamos el carrito guardado en SharedPreferences
+    LaunchedEffect(Unit) {
+        productosCarrito.clear()
+        productosCarrito.addAll(preferenceManager.obtenerCarrito())
+    }
 
-            if (errorMessage.isNotEmpty()){
-                Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(top = 8.dp)
-                )
-            }
+    // Función para agregar productos al carrito
+    fun agregarProductoAlCarrito(producto: Producto) {
+        productosCarrito.add(producto)
 
-            Spacer(modifier = Modifier.height(24.dp))
+        // Después de agregarlo en memoria, también lo guardamos en SharedPreferences
+        preferenceManager.guardarCarrito(productosCarrito)
+    }
 
-            Button(
-                onClick = {
-                    if (email == "admin@mail.com" && password == "1234"){
-                        onLoginClick()
-                    } else {
-                        errorMessage = "Credenciales incorrectas. Intenta de nuevo."
-                    }
+    when (pantallaActual) {
+
+        PantallaActual.TIENDA -> {
+            PantallaTienda(
+                onCarritoClick = {
+                    pantallaActual = PantallaActual.CARRITO
                 },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Entrar")
-            }
+                onProductoClick = { idProducto ->
+                    idProductoSeleccionado = idProducto
+                    pantallaActual = PantallaActual.DETALLE
+                },
+                onAgregarCarritoClick = { producto ->
+                    agregarProductoAlCarrito(producto)
+                }
+            )
         }
-    }
 
-    @Composable
-    fun HomeScreen (onLogoutClick: () -> Unit){
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(text = "Bienvenido al Home!", style = MaterialTheme.typography.headlineMedium)
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = {onLogoutClick()}) {
-                Text("Iniciar sesión")
-            }
+        PantallaActual.DETALLE -> {
+            PantallaDetalleProducto(
+                producto = idProductoSeleccionado?.let { id ->
+                    ProductosData.obtenerProductoPorId(id)
+                },
+                onRegresarClick = {
+                    pantallaActual = PantallaActual.TIENDA
+                },
+                onAgregarCarritoClick = { producto ->
+                    agregarProductoAlCarrito(producto)
+                }
+            )
+        }
+
+        PantallaActual.CARRITO -> {
+            PantallaCarrito(
+                productosCarrito = productosCarrito,
+                onRegresarClick = {
+                    pantallaActual = PantallaActual.TIENDA
+                }
+            )
         }
     }
 }
